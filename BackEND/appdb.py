@@ -53,13 +53,13 @@ def create_employee():
     employees_validator={
         "$jsonSchema" : {
             "bsonType" : "object",
-            "required" : ["First Name","Last Name","DOB","Email", "Skill Level","Active","Age"],
+            "required" : ["First_Name","Last_Name","DOB","Email", "Skill_Level","Active","Age"],
             "properties" :{
-                "First Name" : {
+                "First_Name" : {
                     "bsonType" : "string",
                     "description" : "Must be a unique not null string"
                     },
-                "Last Name" : {
+                "Last_Name" : {
                     "bsonType" : "string",
                     "description" : "Must be a unique not null string"
                     },
@@ -71,7 +71,7 @@ def create_employee():
                     "bsonType" : "string",
                     "description" : "Must be a unique not null string"
                     },
-                "Skill Level" : {
+                "Skill_Level" : {
                     "bsonType" : "array",
                     "description" : "This object should contain the skill of the employee"
                     },
@@ -98,14 +98,14 @@ def create_employee():
 # create_employee()
 
 
-skill_level = db['Skill Levels']
+skill_level = db['Skill_Levels']
 def add_skill():
     skill_validator={
         "$jsonSchema" : {
             "bsonType" : "object",
-            "required" : ["Skill Name","Skill Description"],
+            "required" : ["Skill_Name","Skill Description"],
             "properties" :{
-                "Skill Name" : {
+                "Skill_Name" : {
                     "bsonType" : "string",
                     "description" : "Must be a unique not null string"
                     },
@@ -117,30 +117,30 @@ def add_skill():
                 }
             }
         }
-    db.command("collMod", "Skill Levels", validator = skill_validator)
+    db.command("collMod", "Skill_Levels", validator = skill_validator)
 
 
 
 #try:
-#    db.create_collection("Skill Levels")
+#    db.create_collection("Skill_Levels")
 #except Exception as e:
 #    print(e)
 
 #add_skill()
 
-#db.command("collMod", "Skill Levels", validator = skill_validator)
-skill_level_object = skill_level.find_one({ "$and" : [{"Skill Name":"Python"},{"Skill Description":"Expert"}]})
+#db.command("collMod", "Skill_Levels", validator = skill_validator)
+skill_level_object = skill_level.find_one({ "$and" : [{"Skill_Name":"Python"},{"Skill Description":"Expert"}]})
 skill_level_id = str(skill_level_object['_id'])
-skill_name=skill_level_object['Skill Name']
+skill_name=skill_level_object['Skill_Name']
 skill_description=skill_level_object['Skill Description']
 admin_dict_employees={
-    "First Name" : "admin",
-    "Last Name" : "admin",
+    "First_Name" : "admin",
+    "Last_Name" : "admin",
     "DOB" : datetime.datetime(1997, 12, 24),
     "Email" : "remosurti@gmail.com",
-    "Skill Level" : [{
-        "Skill Level ID" : skill_level_id,
-        "Skill Name" : skill_name,
+    "Skill_Level" : [{
+        "Skill_Level ID" : skill_level_id,
+        "Skill_Name" : skill_name,
         "Skill Description" : skill_description
     }],
     "Active" : True,
@@ -148,7 +148,7 @@ admin_dict_employees={
 }
 
 admin_dict_skill={
-    "Skill Name" : "Python",
+    "Skill_Name" : "Python",
     "Skill Description" : "Beginner"
 }
 
@@ -166,7 +166,3 @@ admin_dict={
 #     print(e)
 
 print(client.list_database_names())
-
-#print(datetime.datetime.today())
-
-#skill_level.update_one({"_id" : _id},{"$set"} : {"Skill Name" : })

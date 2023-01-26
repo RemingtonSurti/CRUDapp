@@ -16,7 +16,8 @@ def token_resp(token : str):
 def sign_JWT(userId : str):
     payload = {
         "userID" : userId,
-        "expiry" : time() + 120
+        "issuedAt" : time(),
+        "expiry" : time() + 600
     }
     token = encode(payload, JWT_SECRET, algorithm = JWT_ALGO)
     return (token_resp(token))

@@ -68,7 +68,7 @@ class getemployeeSchema(BaseModel):
                 "day" : "employee's date of birth",
                 "email" : "employee@email.com",
                 "skill_name" : "name of skill",
-                "skill_description" : "description of skill level",
+                "skill_description" : "description of Skill_Level",
                 "isActive" : True,
                 "Age" : 24
             }

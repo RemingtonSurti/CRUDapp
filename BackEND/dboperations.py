@@ -1,11 +1,11 @@
 import pymongo
 from bson import ObjectId
-import datetime
-from BackEND.model import userLoginSchema, getemployeeSchema
+from datetime import datetime, date
+from BackEND.model import userLoginSchema
+from BackEND.jwt_handler import sign_JWT
 from decouple import config
-from werkzeug.security import generate_password_hash, check_password_hash
-
-
+from werkzeug.security import check_password_hash, generate_password_hash
+import pprint
 
 
 connection_string = f"mongodb+srv://mongodb:{config('Mongo_PWD')}@trainingdb.c92yljh.mongodb.net/?retryWrites=true&w=majority&authSource=admin"
@@ -16,40 +16,98 @@ users = db['Users']
 employees = db['Employees']
 skill_level = db['Skill Levels']
 
-admin_dict={
-    "Username" : "Cristiano",
-    "Password" : generate_password_hash("Ronaldo", method='sha256')
-}
-
-admin_dict_skill={
-    "Skill Name" : "Python",
-    "Skill Description" : "Advanced"
-}
-
-# try:
-#     users.insert_one(admin_dict)
-#     #employees.insert_one(admin_dict_employees)
-#     #skill_level.insert_one(admin_dict_skill)
-# except Exception as e:
-#    print(e)
-
-def get_skill(skillname : str, skilldescription : str) -> object:
+# CHECK EXISTING USERS
+def check_user(data : str):
     try:
-        skill_level_object = skill_level.find_one({"$and": [{"Skill Name":skillname}, {"Skill Description" : skilldescription}]})
-        skill_level_id = str(skill_level_object['_id'])
-        return {
-            "Skill Level ID" : skill_level_id,
-            "Skill Name" : skillname,
-            "Skill Description" : skilldescription
-        }
+        l = users.find_one({"Username" : data})
+        if l:
+            return l
+        return {"msg" : "Invalid user datails", "msgtype" : ""}, 401
+    except Exception as e:
+        print(e) 
+
+# GET LIST OF SKILLS
+def get_skill_list() -> list:
+    sl = []
+    temp = skill_level.find()
+    for doc in temp:
+        if doc:
+            x = doc['Skill_Name']
+            if x not in sl:
+                sl.append(x)
+    return sl
+
+# GET LIST OF DESCRIPTIONS
+def get_description_list() -> list:
+    dl = []
+    temp = skill_level.find()
+    for doc in temp:
+        if doc:
+            x = doc['Skill_Description']
+            if x not in dl:
+                dl.append(x)
+    return dl
+
+
+
+# GET VALID SKILL OBJECT
+def fetch_skill_object(skillname : str, skilldescription : str) -> object:
+    try:
+        if skillname and skilldescription:
+            skill_id = skill_level.find_one({ "$and" : [{"Skill_Name" : skillname.strip()}, {"Skill_Description" : skilldescription}]})
+            if skill_id:
+                return {
+                    "Skill_Level_ID" : str(skill_id['_id']),
+                    "Skill_Name" : skillname,
+                    "Skill_Description" : skilldescription
+                    }
+            else:
+                return {
+                "msg" : "Invalid skill"
+                }
     except Exception as e:
         print(e)
 
+
+# GET A PARTICULAR SKILL
+def get_skill(skill : list):
+    try:
+        if skill:
+            return (skill[0])['Skill_Name']
+        else:
+            return{"msg" : "Invalid skill"}
+    except Exception as e:
+        print(e)
+
+# GET A PARTICULAR DESCRIPTION
+def get_description(skill : list):
+    try:
+        if skill:
+            return (skill[0])['Skill_Description']
+        else:
+            return{"msg" : "Invalid Level"}
+    except Exception as e:
+        print(e)
+
+# SET AGE
+def get_age(dob : datetime) -> int:
+    try:
+        if dob:
+            today = date.today()
+            dob = dob.date()
+            age = (today.year - dob.year)-((today.month, today.day)<(dob.month, dob.day))
+            return age
+        else:
+            return{"msg" : "Invalid date"}
+    except Exception as e:
+        print(e)
+
+# GET AN EMPLOYEE DOCUMENT
 def get_employee(employee_ID : ObjectId) -> object:
     try:
         employee_object = employees.find_one({"_id" : employee_ID})
-        ep_firstname = str(employee_object['First Name'])
-        ep_lastname = str(employee_object['Last Name'])
+        ep_firstname = str(employee_object['First_Name'])
+        ep_lastname = str(employee_object['Last_Name'])
         return {
             "firstname" : ep_firstname,
             "lastname" : ep_lastname
@@ -57,71 +115,109 @@ def get_employee(employee_ID : ObjectId) -> object:
     except Exception as e:
         print(e)
 
-def checkToAdd_user_pass(user : userLoginSchema) -> object:
+# CHECKING USER DETAILS BEFORE ADDING
+def checkToAdd_user_pass(data : userLoginSchema) -> object:
     try:
-        data = users.find()
-        for doc in data:
-            if doc['Username'] == user['username']:
-                if check_password_hash(doc["Password"],user["password"]):
-                    return {"msg" : "Username or password already exists"}
-                else:
-                    users.insert_one({
-                        "Username" : user['username'],
-                        "Password" : user['password'] 
-                    })
-        return {"msg" :"User added Successfully"}
+        user = users.find()
+        if user:
+            for doc in user:
+                if doc['Username'] == data['username']:
+                    if check_password_hash(doc["Password"],data["password"]):
+                        return {"err" : "Username already exists"}    
+            hashed_pwd = generate_password_hash( data['password'], method='sha256')
+            users.insert_one({
+                "Username" : data['username'],
+                "Password" : hashed_pwd
+                })
+            token = sign_JWT(data['username'])
+            return {"access_token" : token['access_token'], "msg" : f"Welcome {data['username']}"}
+        else:
+            return {'err' : 'Database Connection error'}
     except Exception as e:
         print(e)
 
-def checkToAdd_emp(emp : getemployeeSchema) -> object:
-        l = employees.find_one({ "$or" : [{"First Name" : emp['firstname']}, {"Email" : emp['email']}]})
-        add_emp = {
-                "First Name" : emp['firstname'],
-                "Last Name" : emp['lastname'],
-                "DOB" : datetime(emp['yr'], emp['mon'], emp['day']),
+# CHECKING EMPLOYEE DETAILS BEFORE ADDING
+def checkToAdd_emp(emp) -> object:
+    l = employees.find_one({ "$or" : [{"First_Name" : emp['firstname']}, {"Email" : emp['email']}]})
+    if l:
+        return {"err":"Employee already exists"}
+    temp = ""
+    dob = datetime.strptime(emp['DOB'], '%Y-%m-%d')
+    if emp['Active'] == "true":
+        temp = "true"
+    add_emp = {
+                "First_Name" : emp['firstname'],
+                "Last_Name" : emp['lastname'],
+                "DOB" : dob,
                 "Email" : emp['email'],
-                "Skill Level" : [get_skill(emp['skill_name'], emp['skill_description'])],
-                "Active" : emp['Active'],
-                "Age": emp['Age']
-            }
-        if l:
-            return {"ERROR" : "Employee already exists"}
-        else:
-            #doc = employees.insert_one(add_emp)
-            return {
-                "msg":"Employee added Successfully"
+                "Skill_Level" : [fetch_skill_object(emp['skill_name'], emp['skill_description'])],
+                "Active" : bool(temp),
+                "Age": get_age(dob)
                 }
+    doc = employees.insert_one(add_emp)
+    return {"msg":"Employee added Successfully"}
+
+# CHECKING EMPLOYEE DETAILS BEFORE UPDATING
+def checkToUpdate_emp(data, id) -> object:
+    temp=""
+    dob = datetime.strptime(data['DOB'], '%Y-%m-%d')
+    if not data:
+        return {"err" : "Employee not found"}
+    get_emp = employees.find_one({"_id" : ObjectId(id)})
+    if not get_emp:
+        return {"err" : "Employee not found"}
+    if data['Active'] == "true":
+        temp = "true" 
+    new_details = {
+                "First_Name" : data['firstname'],
+                "Last_Name" : data['lastname'],
+                "DOB" : dob,
+                "Email" : data['email'],
+                "Skill_Level" : [fetch_skill_object(data['skill_name'], data['skill_description'])],
+                "Active" : bool(temp),
+                "Age": get_age(dob)
+                }
+    update_emp = employees.update_one({"_id" : ObjectId(id)}, {"$set" : new_details})
+    if update_emp:
+        return {"msg" : "Employee has been updated"}
             
 
-
-def checkToAdd_skill(skill : skill_level) -> str:
+# CHECKING SKILL DETAILS BEFORE ADDING
+def checkToAdd_skill(skillname : str, skilldescription : str) -> object:
     try:
-        l = skill_level.find_one({ "$and" : [{"Skill Name" : skill['Skill Name']}, {"Skill Description" : skill['Skill Description']}]})
+        l = skill_level.find_one({ "$and" : [{"Skill_Name" : skillname}, {"Skill_Description" : skilldescription}]})
         if l:
-            return "Skill already exists"
+            return {"msg" : "Skill already exists"}
         else:
             skill_level.insert_one({
-                "Skill Name" : skill['Skill Name'],
-                "Skill Description" : skill['Skill Description']
+                "Skill_Name" : skillname,
+                "Skill_Description" : skilldescription
                 })
-            return "New Skill added Successfully"
+            return {"msg" : "New Skill added Successfully"}
     except Exception as e:
         print(e)
 
-def check_user(data : str):
-    try:
-        l = users.find_one({"Username" : data})
-        if l:
-            return l
-        return {"msg" : "Invalid user datails"}, 401
-    except Exception as e:
-        print(e) 
 
-    
+
+
+
+# try:
+#     # log = []
+#     # s = ["Python", "HTML", "C#", ".NET", "JavaScript", "React", "Angular", "MongoDB", "MySQL", "JAVA", "C++", "Scala", "SQL Server", "Business"]
+#     # d = ["Beginner", "Intermediate", "Advanced", "Expert"]
+#     # for i in s:
+#     #     for j in d:
+#     #         t=checkToAdd_skill(i, j)
+#     a = get_skill_list()
+#     b = get_description_list()
+#     print(a)
+#     print(b)
+# except Exception as e:
+#    print(e)    
      
 
 
-try:
+# try:
     #encrypter = Fernet(encrypt_key)
     #test = get_skill("Python", "Advanced")
     #test1 = get_employee(ObjectId('63a606bb85815fba95cc588c'))
@@ -129,9 +225,9 @@ try:
     # print(x)
     # print(check_password_hash(x['Password'], "Ronaldo"))
     # test2 = checkToAdd_user_pass({
-    #     "Username" : x['Username'],
-    #     "Password" : check_password_hash(x['Password'], "Ronaldo")
-    # })
+    #     "username" : "Remo",
+    #     "password" : generate_password_hash("Remo", method='sha256')
+    #     })
     # data = users.find()
     # #l = users.find_one({ "$and" : [{"Username" : data['Username']}, {"Password" : data['Password']}]})
     # for doc in data:
@@ -157,12 +253,9 @@ try:
             # else:
             #     print("NA")
 
-    t = "abc"
+    #t = "abc"
 
-    # users.insert_one({
-    #             "Username" : t,
-    #             "Password" : encrypter.encrypt(t.encode())
-    #             })
+    #t = users.insert_one(admin_dict)
     # test3 = checkToAdd_emp({
     #     "firstname": "Pankti",
     #     "lastname": "Gohil",
@@ -177,7 +270,7 @@ try:
     #     })
     # test4 = checkToAdd_skill({
     # "Employee ID" : ObjectId(),
-    # "Skill Name" : "Python",
+    # "Skill_Name" : "Python",
     # "Skill Description" : "Expert"
     # })
     
@@ -194,12 +287,13 @@ try:
     #     "password": "Surti"
     #     })
     #print(test1)
-    #print(test2)
+    #print(test2['msg'])
     #print(test3)
     #print(test4)
-    #print(test5) 
-except Exception as e:
-   print(e)
+    #print(test5)
+    #print(t.inserted_id) 
+# except Exception as e:
+#    print(e)
 
 
 # print(client.list_database_names())
